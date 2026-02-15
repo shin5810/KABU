@@ -31,28 +31,45 @@ if st.button("保存"):
     st.success("保存完了")
     st.subheader("取引履歴")
 
-response = supabase.table("trades").select("symbol, trade_type, trade_date, price, quantity").order("trade_date", desc=True).execute()
+response = supabase.table("trades") \
+    .select("id, symbol, trade_type, trade_date, price, quantity") \
+    .order("trade_date", desc=True) \
+    .execute()
 
 if response.data:
-    st.dataframe(response.data)
+    for row in response.data:
+        col1, col2 = st.columns([5,1])
+
+        with col1:
+            st.write(
+                f"{row['trade_date']} | {row['symbol']} | {row['trade_type']} | "
+                f"{row['price']}円 × {row['quantity']}"
+            )
+
+        with col2:
+            if st.button("削除", key=row["id"]):
+                supabase.table("trades").delete().eq("id", row["id"]).execute()
+                st.rerun()
 else:
-    st.write("まだデータがありません")
+    st.write("データなし")
 if response.data:
     total = sum(item["price"] * item["quantity"] for item in response.data)
     st.write(f"総投資額: {total} 円")
 import pandas as pd
+
 if response.data:
     df = pd.DataFrame(response.data)
-
     df["total"] = df["price"] * df["quantity"]
 
-    st.subheader("銘柄ごと集計")
-    grouped = df.groupby("symbol")["total"].sum().reset_index()
-    st.dataframe(grouped)
-if response.data:
-    st.subheader("売買別集計")
-    type_group = df.groupby("trade_type")["total"].sum().reset_index()
-    st.dataframe(type_group)
+    st.subheader("銘柄ごとの売買集計")
+
+    grouped = df.groupby(["symbol", "trade_type"])["total"].sum().reset_index()
+
+    pivot = grouped.pivot(index="symbol", columns="trade_type", values="total").fillna(0)
+
+    pivot["損益"] = pivot.get("sell", 0) - pivot.get("buy", 0)
+
+    st.dataframe(pivot)
 st.subheader("データ削除")
 
 delete_id = st.text_input("削除するIDを入力")
@@ -67,5 +84,5 @@ if response.data:
     profit = sell_total - buy_total
 
     st.subheader("簡易損益")
-
     st.write(f"損益: {profit} 円")
+
