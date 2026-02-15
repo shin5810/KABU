@@ -84,14 +84,33 @@ if trades:
     with st.expander("取引履歴を見る"):
         for row in trades:
             col1, col2 = st.columns([5,1])
+
             with col1:
                 st.write(
                     f"{row['trade_date']} | {row['symbol']} | {row['trade_type']} | "
                     f"{row['price']}円 × {row['quantity']}"
                 )
+
             with col2:
+                delete_key = f"confirm_{row['id']}"
+
+                # 1回目の削除ボタン
                 if st.button("削除", key=f"del_{row['id']}"):
-                    supabase.table("trades").delete().eq("id", row["id"]).execute()
-                    st.experimental_rerun()
+                    st.session_state[delete_key] = True
 
+                # 確認表示
+                if st.session_state.get(delete_key, False):
+                    st.warning("本当に削除しますか？")
 
+                    col_yes, col_no = st.columns(2)
+
+                    with col_yes:
+                        if st.button("はい", key=f"yes_{row['id']}"):
+                            supabase.table("trades").delete().eq("id", row["id"]).execute()
+                            st.success("削除しました")
+                            st.session_state[delete_key] = False
+                            st.experimental_rerun()
+
+                    with col_no:
+                        if st.button("いいえ", key=f"no_{row['id']}"):
+                            st.session_state[delete_key] = False
