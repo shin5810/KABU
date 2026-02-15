@@ -67,4 +67,5 @@ if response.data:
     profit = sell_total - buy_total
 
     st.subheader("簡易損益")
+
     st.write(f"損益: {profit} 円")
