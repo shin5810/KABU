@@ -1,17 +1,27 @@
 import streamlit as st
 from supabase import create_client
 from datetime import date
+import pandas as pd
 
 # ===== Supabase設定 =====
 SUPABASE_URL = "https://ofcrcrikfrgzgohzsnuo.supabase.co"
 SUPABASE_KEY = "sb_publishable_j9MfY0FdNexNqzIEhxMCmQ_X9GPERlw"
-
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# ===== 簡易認証 =====
+PASSWORD = "5810"
+input_pw = st.text_input("パスワードを入力", type="password")
+if input_pw != PASSWORD:
+    st.warning("パスワードが違います")
+    st.stop()
 
 st.title("株取引記録ツール")
 
 # ===== 入力フォーム =====
-symbol = st.text_input("銘柄コード")
+symbols_response = supabase.table("trades").select("symbol").execute()
+symbols = list({row["symbol"] for row in symbols_response.data}) if symbols_response.data else []
+
+symbol = st.selectbox("銘柄コード", options=symbols, index=0 if symbols else -1)
 trade_type = st.selectbox("売買区分", ["buy", "sell"])
 trade_date = st.date_input("日付", date.today())
 price = st.number_input("価格", min_value=0.0)
@@ -25,64 +35,63 @@ if st.button("保存"):
         "price": price,
         "quantity": quantity,
     }
-
-    response = supabase.table("trades").insert(data).execute()
-
+    supabase.table("trades").insert(data).execute()
     st.success("保存完了")
-    st.subheader("取引履歴")
+    st.experimental_rerun()
 
-response = supabase.table("trades") \
-    .select("id, symbol, trade_type, trade_date, price, quantity") \
-    .order("trade_date", desc=True) \
-    .execute()
+# ===== 取引履歴取得 =====
+def get_trades():
+    response = supabase.table("trades") \
+        .select("id, symbol, trade_type, trade_date, price, quantity") \
+        .order("trade_date", desc=True) \
+        .execute()
+    return response.data if response.data else []
 
-if response.data:
-    for row in response.data:
-        col1, col2 = st.columns([5,1])
+trades = get_trades()
 
-        with col1:
-            st.write(
-                f"{row['trade_date']} | {row['symbol']} | {row['trade_type']} | "
-                f"{row['price']}円 × {row['quantity']}"
-            )
-
-        with col2:
-            if st.button("削除", key=row["id"]):
-                supabase.table("trades").delete().eq("id", row["id"]).execute()
-                st.rerun()
-else:
-    st.write("データなし")
-if response.data:
-    total = sum(item["price"] * item["quantity"] for item in response.data)
-    st.write(f"総投資額: {total} 円")
-import pandas as pd
-
-if response.data:
-    df = pd.DataFrame(response.data)
+# ===== 銘柄ごとの売買集計・簡易損益 =====
+if trades:
+    df = pd.DataFrame(trades)
     df["total"] = df["price"] * df["quantity"]
 
-    st.subheader("銘柄ごとの売買集計")
-
     grouped = df.groupby(["symbol", "trade_type"])["total"].sum().reset_index()
-
     pivot = grouped.pivot(index="symbol", columns="trade_type", values="total").fillna(0)
 
-    pivot["損益"] = pivot.get("sell", 0) - pivot.get("buy", 0)
+    # 損益計算（列がない場合はゼロで補完）
+    sell_series = pivot.get("sell", pd.Series([0]*len(pivot)))
+    buy_series = pivot.get("buy", pd.Series([0]*len(pivot)))
+    pivot["損益"] = sell_series - buy_series
+    pivot["損益プラス"] = pivot["損益"].apply(lambda x: x if x > 0 else 0)
+    pivot["損益マイナス"] = pivot["損益"].apply(lambda x: x if x < 0 else 0)
 
+    st.subheader("銘柄ごとの売買集計")
     st.dataframe(pivot)
-st.subheader("データ削除")
 
-delete_id = st.text_input("削除するIDを入力")
-
-if st.button("削除"):
-    supabase.table("trades").delete().eq("id", delete_id).execute()
-    st.success("削除しました")
-if response.data:
+    # 簡易損益表示
     buy_total = df[df["trade_type"] == "buy"]["total"].sum()
     sell_total = df[df["trade_type"] == "sell"]["total"].sum()
-
     profit = sell_total - buy_total
+    profit_plus_total = pivot["損益プラス"].sum()
+    profit_minus_total = pivot["損益マイナス"].sum()
 
     st.subheader("簡易損益")
-    st.write(f"損益: {profit} 円")
+    st.write(f"損益合計: {profit} 円")
+    st.write(f"損益プラス合計: {profit_plus_total} 円")
+    st.write(f"損益マイナス合計: {profit_minus_total} 円")
+
+# ===== 取引履歴（折りたたみ表示：最後に） =====
+if trades:
+    with st.expander("取引履歴を見る"):
+        for row in trades:
+            col1, col2 = st.columns([5,1])
+            with col1:
+                st.write(
+                    f"{row['trade_date']} | {row['symbol']} | {row['trade_type']} | "
+                    f"{row['price']}円 × {row['quantity']}"
+                )
+            with col2:
+                if st.button("削除", key=f"del_{row['id']}"):
+                    supabase.table("trades").delete().eq("id", row["id"]).execute()
+                    st.experimental_rerun()
+
 
