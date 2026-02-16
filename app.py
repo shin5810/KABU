@@ -109,9 +109,10 @@ if trades:
                             supabase.table("trades").delete().eq("id", row["id"]).execute()
                             st.success("削除しました")
                             st.session_state[delete_key] = False
-                            st.experimental_rerun()
+                            st.rerun()
 
                     with col_no:
                         if st.button("いいえ", key=f"no_{row['id']}"):
                             st.session_state[delete_key] = False
+
 
