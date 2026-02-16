@@ -37,7 +37,7 @@ if st.button("保存"):
     }
     supabase.table("trades").insert(data).execute()
     st.success("保存完了")
-    st.experimental_rerun()
+    st.rerun()
 
 # ===== 取引履歴取得 =====
 def get_trades():
@@ -114,3 +114,4 @@ if trades:
                     with col_no:
                         if st.button("いいえ", key=f"no_{row['id']}"):
                             st.session_state[delete_key] = False
+
