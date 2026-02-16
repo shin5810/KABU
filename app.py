@@ -60,6 +60,7 @@ if trades:
     # 損益計算（列がない場合はゼロで補完）
     sell_series = pivot.get("sell", pd.Series([0]*len(pivot)))
     buy_series = pivot.get("buy", pd.Series([0]*len(pivot)))
+    pivot.index.name = "銘柄"
     pivot["損益"] = sell_series - buy_series
     pivot["損益プラス"] = pivot["損益"].apply(lambda x: x if x > 0 else 0)
     pivot["損益マイナス"] = pivot["損益"].apply(lambda x: x if x < 0 else 0)
@@ -114,5 +115,6 @@ if trades:
                     with col_no:
                         if st.button("いいえ", key=f"no_{row['id']}"):
                             st.session_state[delete_key] = False
+
 
 
