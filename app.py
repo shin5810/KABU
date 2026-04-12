@@ -35,7 +35,8 @@ else:
     symbol = symbol_option
 
 trade_type = st.selectbox("売買", ["buy", "sell"])
-trade_date = st.date_input("日付", date.today())
+from datetime import datetime
+trade_datetime = st.datetime_input("日時", datetime.now())
 price = st.number_input("価格", min_value=0.0)
 quantity = st.number_input("株数", min_value=1)
 
@@ -50,7 +51,7 @@ if st.button("保存"):
     supabase.table("trades").insert({
         "symbol": symbol,
         "trade_type": trade_type,
-        "trade_date": str(trade_date),
+        "trade_date": trade_datetime.isoformat(),
         "price": price,
         "quantity": quantity,
         "is_taxable": is_taxable
@@ -72,7 +73,7 @@ df = pd.DataFrame(trades) if trades else pd.DataFrame()
 
 if not df.empty:
     df["trade_date"] = pd.to_datetime(df["trade_date"])
-    df = df.sort_values(["symbol", "trade_date"])
+    df = df.sort_values(["symbol", "trade_date"], ascending=[True, True])
 
 # ===== 計算 =====
 realized = []
